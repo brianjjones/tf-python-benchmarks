@@ -129,4 +129,4 @@ dmypy.json
 .pyre/
 
 savedmodel
-
+savedmodel_optimized
