@@ -28,6 +28,10 @@ elif ml == "ResNet50":
     print("Using ResNet50")
     pretrained_model = tf.keras.applications.ResNet50(input_shape=(224, 224, 3), weights="imagenet")
     pl = tf.keras.applications.resnet50.preprocess_input
+elif ml == "ResNet152V2":
+    print("Using ResNet50")
+    pretrained_model = tf.keras.applications.resnet_v2.ResNet152V2(input_shape=(224, 224, 3), weights="imagenet")
+    pl = tf.keras.applications.resnet_v2.preprocess_input
 elif ml == "InceptionResNetV2":
     print("Using InceptionResNetV2")
     pretrained_model = tf.keras.applications.InceptionResNetV2(input_shape=(299, 299, 3), weights="imagenet")
