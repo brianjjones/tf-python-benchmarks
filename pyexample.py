@@ -6,6 +6,10 @@ import tensorflow as tf
 import sys
 import subprocess
 
+if len(sys.argv) < 4:
+    print("Missing arguments. Please enter the model, number of runs, and batch size. ex: python pyexample.py ResNet50 5 15", len(sys.argv))
+    sys.exit()
+
 ml = (sys.argv)[1]
 
 if ml == "MobileNetV3Small":
@@ -37,28 +41,61 @@ elif ml == "InceptionResNetV2":
     pretrained_model = tf.keras.applications.InceptionResNetV2(input_shape=(299, 299, 3), weights="imagenet")
     pl = tf.keras.applications.inception_resnet_v2.preprocess_input
 else:
-    print("Unknown model. Options are MobileNetV3Small, MobileNetV3Large, MobileNet, ResNet50, or InceptionResNetV2")
-    exit
+    print("Unknown model. Options are MobileNetV3Small, MobileNetV3Large, MobileNet, ResNet50, ResNet152V2, or InceptionResNetV2")
+    sys.exit()
 
 if ml != "InceptionResNetV2":
     fsize = 224
 else:
     fsize = 299
 
+images = []
 file1 = os.path.abspath("images/banana.jpg")
-img1 = tf.keras.utils.load_img(file1, target_size=[fsize, fsize])
+images.append(tf.keras.utils.load_img(file1, target_size=[fsize, fsize]))
 
 file2 = os.path.abspath("images/heron.jpg")
-img2 = tf.keras.utils.load_img(file2, target_size=[fsize, fsize])
+images.append(tf.keras.utils.load_img(file2, target_size=[fsize, fsize]))
 
 file3 = os.path.abspath("images/pizza.jpg")
-img3 = tf.keras.utils.load_img(file3, target_size=[fsize, fsize])
+images.append(tf.keras.utils.load_img(file3, target_size=[fsize, fsize]))
 
 file4 = os.path.abspath("images/stop.jpg")
-img4 = tf.keras.utils.load_img(file4, target_size=[fsize, fsize])
+images.append(tf.keras.utils.load_img(file4, target_size=[fsize, fsize]))
 
 file5 = os.path.abspath("images/train.jpg")
-img5 = tf.keras.utils.load_img(file5, target_size=[fsize, fsize])
+images.append(tf.keras.utils.load_img(file5, target_size=[fsize, fsize]))
+
+def run_bench():
+    curr_img = 0
+    x1 = tf.keras.utils.img_to_array(images[curr_img])
+    img_arr = [x1]
+
+    for j in range(1, batch_sz):
+        if curr_img < 4:
+            curr_img += 1
+        else:
+            curr_img = 0
+        x2 = tf.keras.utils.img_to_array(images[curr_img])
+        img_arr.append(x2)
+
+    input_arr = np.array(img_arr)
+
+    x = pl(
+        input_arr[tf.newaxis,...])
+
+    start_time = time.time_ns()
+    labeling = infer(tf.constant(x, shape=[batch_sz,fsize,fsize,3]))[pretrained_model.output_names[0]]
+    end_time = time.time_ns()
+    total_time = (end_time - start_time) // 1_000_000
+    per_img = total_time / batch_sz
+
+    print("\n****** RESULTS FOR RUN %s ******" % (num))
+    print("In total it took : ", total_time)
+    print("For a batch size of %s, each image took roughly : %s" % (batch_sz, per_img))
+    print("Results after saving and loading:\n")
+    for i in range(0, batch_sz):
+        decoded = imagenet_labels[np.argsort(labeling)[i,::-1][:3]+1]
+        print("%s - %s" % (i, decoded))
 
 labels_path = tf.keras.utils.get_file(
     'ImageNetLabels.txt',
@@ -75,6 +112,7 @@ tf.saved_model.save(pretrained_model, mobilenet_save_path)
 
 # Call the optimize script and save the new model
 subprocess.call("python3 freeze_optimize_v2.py --input_saved_model_dir=savedmodel --output_saved_model_dir=savedmodel_optimized", shell=True)
+batch_sz = int((sys.argv)[3])
 
 print("\n")
 print("*****************************************")
@@ -88,21 +126,7 @@ print(infer.structured_outputs)
 print(pretrained_model.output_names)
 
 for num in range(0, int((sys.argv)[2])):
-    for img in [img1, img2, img3, img4, img5]:
-        plt.imshow(img)
-        plt.axis('off')
-        x = tf.keras.utils.img_to_array(img)
-        x = pl(
-            x[tf.newaxis,...])
-
-        start_time = time.time_ns()
-        labeling = infer(tf.constant(x))[pretrained_model.output_names[0]]
-        end_time = time.time_ns()
-        total_time = (end_time - start_time) // 1_000_000
-        print("It took : ", total_time)
-        decoded = imagenet_labels[np.argsort(labeling)[0,::-1][:5]+1]
-
-        print("Result after saving and loading:\n", decoded)
+    run_bench()
 
 print("\n")
 print("*********************************************")
@@ -112,20 +136,5 @@ loaded = tf.saved_model.load("savedmodel_optimized")
 print(list(loaded.signatures.keys()))  # ["serving_default"]
 
 infer = loaded.signatures["serving_default"]
-
 for num in range(0, int((sys.argv)[2])):
-    for img in [img1, img2, img3, img4, img5]:
-        plt.imshow(img)
-        plt.axis('off')
-        x = tf.keras.utils.img_to_array(img)
-        x = pl(
-            x[tf.newaxis,...])
-
-        start_time = time.time_ns()
-        labeling = infer(tf.constant(x))[pretrained_model.output_names[0]]
-        end_time = time.time_ns()
-        total_time = (end_time - start_time) // 1_000_000
-        print("It took : ", total_time)
-        decoded = imagenet_labels[np.argsort(labeling)[0,::-1][:5]+1]
-
-        print("Result after saving and loading:\n", decoded)
+    run_bench()
